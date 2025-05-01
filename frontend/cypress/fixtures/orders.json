@@ -1,0 +1,58 @@
+// cypress/fixtures/orders.json
+[
+    {
+      "_id": "order123",
+      "wasteType": "CoconutHusk",
+      "quantity": 10,
+      "amount": 500,
+      "address": "123 Test Street, Colombo",
+      "phoneNumber": "1234567890",
+      "email": "test@example.com",
+      "status": "Pending",
+      "createdAt": "2023-05-15T08:30:00.000Z"
+    },
+    {
+      "_id": "order124",
+      "wasteType": "CoconutShell",
+      "quantity": 15,
+      "amount": 750,
+      "address": "456 Sample Road, Kandy",
+      "phoneNumber": "0987654321",
+      "email": "customer@example.com",
+      "status": "Delivered",
+      "createdAt": "2023-05-10T10:15:00.000Z"
+    },
+    {
+      "_id": "order125",
+      "wasteType": "CoconutFiber",
+      "quantity": 5,
+      "amount": 250,
+      "address": "789 Demo Lane, Galle",
+      "phoneNumber": "5551234567",
+      "email": "buyer@example.com",
+      "status": "On Delivery",
+      "createdAt": "2023-05-18T14:45:00.000Z"
+    },
+    {
+      "_id": "order126",
+      "wasteType": "CoconutLeaves",
+      "quantity": 8,
+      "amount": 400,
+      "address": "101 Test Avenue, Jaffna",
+      "phoneNumber": "7778889999",
+      "email": "client@example.com",
+      "status": "Cancelled",
+      "createdAt": "2023-05-05T09:20:00.000Z"
+    },
+    {
+      "_id": "order127",
+      "wasteType": "CoconutTrunk",
+      "quantity": 3,
+      "amount": 1200,
+      "address": "202 Sample Street, Negombo",
+      "phoneNumber": "1112223333",
+      "email": "user@example.com",
+      "status": "Pending",
+      "createdAt": "2023-05-20T11:30:00.000Z"
+    }
+  ]

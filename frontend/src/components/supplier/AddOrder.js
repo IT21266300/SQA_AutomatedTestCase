@@ -2,7 +2,17 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRecycle, faInfoCircle, faShoppingCart, faMapMarkerAlt, faPhone, faEnvelope, faMoneyBillWave } from '@fortawesome/free-solid-svg-icons';
+import { 
+  faRecycle, 
+  faInfoCircle, 
+  faShoppingCart, 
+  faMapMarkerAlt, 
+  faPhone, 
+  faEnvelope, 
+  faMoneyBillWave,
+  faFileDownload,
+  faArrowLeft
+} from '@fortawesome/free-solid-svg-icons';
 import MainNavbar from '../Home/MainNavbar';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -27,9 +37,9 @@ const AddOrder = () => {
 
   // Calculate form completion progress
   useEffect(() => {
-    const fields = Object.values(formData);
-    const filledFields = fields.filter(field => field !== '').length;
-    const progress = (filledFields / fields.length) * 100;
+    const requiredFields = ['wasteType', 'quantity', 'amount', 'address', 'phoneNumber', 'email'];
+    const filledFieldsCount = requiredFields.filter(field => formData[field] !== '').length;
+    const progress = Math.floor((filledFieldsCount / requiredFields.length) * 100);
     setFormProgress(progress);
   }, [formData]);
 
@@ -42,13 +52,13 @@ const AddOrder = () => {
 
     if (!formData.quantity) {
       newErrors.quantity = 'Quantity is required';
-    } else if (formData.quantity <= 0) {
+    } else if (parseFloat(formData.quantity) <= 0) {
       newErrors.quantity = 'Quantity must be a positive number';
     }
 
     if (!formData.amount) {
       newErrors.amount = 'Amount is required';
-    } else if (formData.amount <= 0) {
+    } else if (parseFloat(formData.amount) <= 0) {
       newErrors.amount = 'Amount must be a positive number';
     }
 
@@ -75,6 +85,7 @@ const AddOrder = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let newValue = value;
+    
     if (name === 'quantity' || name === 'amount') {
       // Only allow numbers and a single decimal point
       newValue = value.replace(/[^0-9.]/g, '');
@@ -83,7 +94,10 @@ const AddOrder = () => {
       // Only allow numbers, max 10 digits
       newValue = value.replace(/[^0-9]/g, '').slice(0, 10);
     }
+    
     setFormData({ ...formData, [name]: newValue });
+    
+    // Clear error for this field if it exists
     if (errors[name]) {
       setErrors({ ...errors, [name]: '' });
     }
@@ -94,14 +108,18 @@ const AddOrder = () => {
     setSuccess('');
 
     if (!validateForm()) {
+      // Scroll to the first error
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        document.getElementById(firstErrorField)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
-      console.log('Sending order data:', formData);
       const response = await axios.post('http://localhost:5000/api/orders/', formData);
-      console.log('Server response:', response.data);
+      console.log('Order placed successfully:', response.data);
       setSuccess('Order placed successfully!');
       
       // Dispatch custom event when order is placed successfully
@@ -110,6 +128,7 @@ const AddOrder = () => {
       });
       window.dispatchEvent(orderPlacedEvent);
 
+      // Reset form
       setFormData({
         wasteType: '',
         quantity: '',
@@ -118,6 +137,8 @@ const AddOrder = () => {
         phoneNumber: '',
         email: ''
       });
+      
+      // Navigate after a short delay
       setTimeout(() => navigate('/orders'), 2000);
     } catch (error) {
       console.error('Error placing order:', error);
@@ -129,479 +150,700 @@ const AddOrder = () => {
   };
 
   const generateOrderPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text('Order Confirmation', 14, 20);
-
-    doc.setFontSize(12);
-    doc.text(`Waste Type: ${formData.wasteType}`, 14, 40);
-    doc.text(`Quantity: ${formData.quantity}`, 14, 50);
-    doc.text(`Amount: Rs. ${formData.amount}`, 14, 60);
-    doc.text(`Address: ${formData.address}`, 14, 70);
-    doc.text(`Phone Number: ${formData.phoneNumber}`, 14, 80);
-    doc.text(`Email: ${formData.email}`, 14, 90);
-
-    doc.save('order-confirmation.pdf');
+    try {
+      const doc = new jsPDF();
+      
+      // Add title with styling
+      doc.setFontSize(22);
+      doc.setTextColor(14, 116, 144);
+      doc.text('Order Confirmation', 105, 20, { align: 'center' });
+      
+      // Add divider line
+      doc.setDrawColor(14, 116, 144);
+      doc.setLineWidth(0.5);
+      doc.line(14, 25, 196, 25);
+      
+      // Order details
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Order Details', 14, 35);
+      
+      // Create a styled table for order details
+      const tableData = [
+        ['Waste Type', formData.wasteType],
+        ['Quantity', formData.quantity],
+        ['Amount', `Rs. ${formData.amount}`],
+        ['Address', formData.address],
+        ['Phone Number', formData.phoneNumber],
+        ['Email', formData.email],
+        ['Date', new Date().toLocaleDateString()],
+        ['Time', new Date().toLocaleTimeString()]
+      ];
+      
+      doc.autoTable({
+        startY: 40,
+        head: [['Field', 'Value']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [14, 116, 144],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [240, 249, 255]
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 6
+        }
+      });
+      
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.setTextColor(128, 128, 128);
+        doc.text('Thank you for your order! If you have any questions, please contact customer support.', 105, 285, { align: 'center' });
+      }
+  
+      doc.save('order-confirmation.pdf');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
 
-  const styles = `
-    .add-order-container {
-      margin-top: 80px;
-      padding: 20px;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
-      font-family: 'Segoe UI', Arial, sans-serif;
-      animation: fadeIn 1s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .add-order-form {
-      max-width: 600px;
-      margin: 0 auto;
-      background: white;
-      padding: 30px;
-      border-radius: 18px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-      position: relative;
-      overflow: hidden;
-      border: 3px solid;
-      border-image: linear-gradient(135deg, #26a69a 0%, #b2ebf2 100%) 1;
-      animation: formPop 0.8s cubic-bezier(.68,-0.55,.27,1.55);
-    }
-
-    @keyframes formPop {
-      0% { transform: scale(0.95); }
-      100% { transform: scale(1); }
-    }
-
-    .add-order-form h1 {
-      text-align: center;
-      color: #00695c;
-      margin-bottom: 25px;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    .section-divider {
-      border: none;
-      border-top: 2px dashed #b2ebf2;
-      margin: 24px 0 18px 0;
-    }
-
-    .form-section-title {
-      color: #009688;
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 10px;
-      margin-top: 10px;
-      letter-spacing: 0.5px;
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-      position: relative;
-    }
-
-    .form-group label {
-      display: flex;
-      align-items: center;
-      margin-bottom: 8px;
-      color: #004d40;
-      font-weight: 500;
-      font-size: 15px;
-    }
-
-    .form-group label svg {
-      margin-right: 8px;
-      color: #26a69a;
-    }
-
-    .form-description {
-      font-size: 12px;
-      color: #78909c;
-      margin-bottom: 4px;
-      margin-left: 2px;
-    }
-
-    .form-group input,
-    .form-group select {
-      width: 100%;
-      padding: 10px 40px 10px 12px;
-      border: 2px solid #b0bec5;
-      border-radius: 6px;
-      font-size: 15px;
-      background: #f5f5f5;
-      transition: all 0.3s cubic-bezier(.68,-0.55,.27,1.55);
-      box-shadow: 0 1px 2px rgba(38,166,154,0.04);
-      outline: none;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus {
-      border-color: #26a69a;
-      background: #e0f7fa;
-      box-shadow: 0 0 8px rgba(38, 166, 154, 0.18);
-      transform: scale(1.01);
-    }
-
-    .form-group select {
-      background: #f5f5f5 url('data:image/svg+xml;utf8,<svg fill="%2326a69a" height="20" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 12px center/20px 20px;
-      appearance: none;
-      cursor: pointer;
-    }
-
-    .form-group option {
-      background: #fff;
-      color: #004d40;
-      font-size: 15px;
-    }
-
-    .form-error {
-      color: #d32f2f;
-      font-size: 13px;
-      margin-top: 5px;
-      display: block;
-      background: #ffebee;
-      padding: 4px 8px;
-      border-radius: 4px;
-      margin-left: 2px;
-      animation: fadeIn 0.5s;
-    }
-
-    .submit-btn, .cancel-btn {
-      padding: 12px 28px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 17px;
-      font-weight: 600;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s cubic-bezier(.68,-0.55,.27,1.55);
-      margin: 5px;
-      box-shadow: 0 2px 8px rgba(38,166,154,0.08);
-    }
-
-    .submit-btn {
-      background: linear-gradient(90deg, #26a69a 0%, #00796b 100%);
-      color: white;
-    }
-
-    .cancel-btn {
-      background: linear-gradient(90deg, #d32f2f 0%, #ff5252 100%);
-      color: white;
-    }
-
-    .submit-btn:hover, .cancel-btn:hover {
-      transform: translateY(-2px) scale(1.04);
-      box-shadow: 0 6px 18px rgba(38, 166, 154, 0.18);
-      filter: brightness(1.08);
-    }
-
-    .submit-btn:disabled {
-      background: #b0bec5;
-      cursor: not-allowed;
-      filter: grayscale(0.5);
-    }
-
-    .loading-spinner {
-      display: inline-block;
-      border: 3px solid #ffffff;
-      border-top: 3px solid transparent;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      animation: spin 1s linear infinite;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-
-    @keyframes spin {
-      0% { transform: translateX(-50%) rotate(0deg); }
-      100% { transform: translateX(-50%) rotate(360deg); }
-    }
-
-    .error {
-      color: #d32f2f;
-      text-align: center;
-      margin-bottom: 15px;
-      background: #ffebee;
-      padding: 10px;
-      border-radius: 4px;
-      font-size: 15px;
-      animation: fadeIn 0.5s;
-    }
-
-    .success {
-      color: #2e7d32;
-      text-align: center;
-      margin-bottom: 15px;
-      background: #e8f5e9;
-      padding: 10px;
-      border-radius: 4px;
-      font-size: 15px;
-      animation: fadeIn 0.5s;
-    }
-
-    .progress-bar {
-      width: 100%;
-      height: 8px;
-      background: #eceff1;
-      border-radius: 4px;
-      margin-bottom: 20px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .progress-label {
-      position: absolute;
-      right: 10px;
-      top: -22px;
-      font-size: 12px;
-      color: #009688;
-      font-weight: 600;
-    }
-
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #26a69a 0%, #b2ebf2 100%);
-      transition: width 0.3s cubic-bezier(.68,-0.55,.27,1.55);
-    }
-
-    .tooltip {
-      position: relative;
-      display: inline-block;
-      margin-left: 8px;
-    }
-
-    .tooltip .tooltip-text {
-      visibility: hidden;
-      width: 200px;
-      background: #37474f;
-      color: white;
-      text-align: center;
-      padding: 8px;
-      border-radius: 4px;
-      position: absolute;
-      z-index: 1;
-      bottom: 125%;
-      left: 50%;
-      transform: translateX(-50%);
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .tooltip:hover .tooltip-text {
-      visibility: visible;
-      opacity: 1;
-    }
-
-    .button-group {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    @media (max-width: 768px) {
-      .add-order-form {
-        padding: 20px;
-      }
-      .add-order-container {
-        margin-top: 120px;
-      }
-    }
-  `;
-
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: styles }} />
+    <div className="add-order-wrapper">
       <MainNavbar />
       <div className="add-order-container">
-        <form className="add-order-form" onSubmit={handleOrderSubmit}>
-          <h1>Add New Order</h1>
-
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: `${formProgress}%` }}></div>
-            <span className="progress-label">{Math.round(formProgress)}%</span>
+        <div className="form-container">
+          <div className="back-link" onClick={() => navigate('/orders')} data-testid="back-to-orders">
+            <FontAwesomeIcon icon={faArrowLeft} /> Back to Orders
           </div>
+          
+          <form className="add-order-form" onSubmit={handleOrderSubmit} data-testid="order-form">
+            <h1>Add New Order</h1>
 
-          {errors.submit && <div className="error">{errors.submit}</div>}
-          {success && <div className="success">{success}</div>}
-          {success && (
-            <button
-              type="button"
-              className="submit-btn"
-              onClick={generateOrderPDF}
-              style={{ marginTop: '10px' }}
-            >
-              Download Order Confirmation PDF
-            </button>
-          )}
-
-          <div className="form-section-title">Order Details</div>
-          <div className="form-group">
-            <label htmlFor="wasteType">
-              <FontAwesomeIcon icon={faRecycle} /> Waste Type
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Select the type of coconut waste product to order.</span>
+            {/* Progress Bar */}
+            <div className="progress-container">
+              <div className="progress-bar" data-testid="form-progress-bar">
+                <div className="progress-fill" style={{ width: `${formProgress}%` }}></div>
               </div>
-            </label>
-            <div className="form-description">Choose the coconut waste category for your order.</div>
-            <select
-              id="wasteType"
-              name="wasteType"
-              value={formData.wasteType}
-              onChange={handleInputChange}
-              required
-            >
-              <option value="">Select Waste Type</option>
-              <option value="CoconutHusk">Coconut Husk</option>
-              <option value="CoconutShell">Coconut Shell</option>
-              <option value="CoconutFiber">Coconut Fiber</option>
-              <option value="CoconutPith">Coconut Pith</option>
-              <option value="CoconutLeaves">Coconut Leaves</option>
-              <option value="CoconutTrunk">Coconut Trunk</option>
-            </select>
-            {errors.wasteType && <span className="form-error">{errors.wasteType}</span>}
-          </div>
+              <span className="progress-text">{formProgress}% completed</span>
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="quantity">
-              <FontAwesomeIcon icon={faShoppingCart} /> Quantity
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Enter the number of items ordered (positive number).</span>
+            {/* Alerts */}
+            {errors.submit && (
+              <div className="alert error-alert" data-testid="submit-error">
+                <FontAwesomeIcon icon={faInfoCircle} /> {errors.submit}
               </div>
-            </label>
-            <div className="form-description">How many units do you want to order?</div>
-            <input
-              type="number"
-              id="quantity"
-              name="quantity"
-              value={formData.quantity}
-              onChange={handleInputChange}
-              required
-              min="1"
-            />
-            {errors.quantity && <span className="form-error">{errors.quantity}</span>}
-          </div>
-
-          <hr className="section-divider" />
-
-          <div className="form-section-title">Payment & Contact</div>
-          <div className="form-group">
-            <label htmlFor="amount">
-              <FontAwesomeIcon icon={faMoneyBillWave} /> Amount (Rs.)
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Enter the total amount in Rupees (positive number).</span>
+            )}
+            
+            {success && (
+              <div className="alert success-alert" data-testid="submit-success">
+                <FontAwesomeIcon icon={faInfoCircle} /> {success}
               </div>
-            </label>
-            <div className="form-description">Total price for your order.</div>
-            <input
-              type="number"
-              id="amount"
-              name="amount"
-              value={formData.amount}
-              onChange={handleInputChange}
-              required
-              min="0"
-              step="0.01"
-            />
-            {errors.amount && <span className="form-error">{errors.amount}</span>}
-          </div>
+            )}
+            
+            {success && (
+              <button
+                type="button"
+                className="pdf-button"
+                onClick={generateOrderPDF}
+                data-testid="download-pdf-button"
+              >
+                <FontAwesomeIcon icon={faFileDownload} /> Download Order Confirmation
+              </button>
+            )}
 
-          <div className="form-group">
-            <label htmlFor="address">
-              <FontAwesomeIcon icon={faMapMarkerAlt} /> Address
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Enter the delivery address for the order.</span>
+            {/* Order Details Section */}
+            <div className="form-section">
+              <h2 className="section-title">Order Details</h2>
+              
+              <div className="form-group">
+                <label htmlFor="wasteType" className="form-label">
+                  <FontAwesomeIcon icon={faRecycle} className="label-icon" />
+                  Waste Type
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <select
+                    id="wasteType"
+                    name="wasteType"
+                    className={`form-input ${errors.wasteType ? 'error-input' : ''}`}
+                    value={formData.wasteType}
+                    onChange={handleInputChange}
+                    required
+                    data-testid="waste-type-input"
+                  >
+                    <option value="">Select Waste Type</option>
+                    <option value="CoconutHusk">Coconut Husk</option>
+                    <option value="CoconutShell">Coconut Shell</option>
+                    <option value="CoconutFiber">Coconut Fiber</option>
+                    <option value="CoconutPith">Coconut Pith</option>
+                    <option value="CoconutLeaves">Coconut Leaves</option>
+                    <option value="CoconutTrunk">Coconut Trunk</option>
+                  </select>
+                  <div className="tooltip" data-testid="waste-type-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Select the type of coconut waste product to order.</span>
+                  </div>
+                </div>
+                {errors.wasteType && <div className="error-message" data-testid="waste-type-error">{errors.wasteType}</div>}
               </div>
-            </label>
-            <div className="form-description">Where should we deliver your order?</div>
-            <input
-              type="text"
-              id="address"
-              name="address"
-              value={formData.address}
-              onChange={handleInputChange}
-              required
-            />
-            {errors.address && <span className="form-error">{errors.address}</span>}
-          </div>
 
-          <div className="form-group">
-            <label htmlFor="phoneNumber">
-              <FontAwesomeIcon icon={faPhone} /> Phone Number
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Enter a 10-digit phone number.</span>
+              <div className="form-group">
+                <label htmlFor="quantity" className="form-label">
+                  <FontAwesomeIcon icon={faShoppingCart} className="label-icon" />
+                  Quantity
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    className={`form-input ${errors.quantity ? 'error-input' : ''}`}
+                    value={formData.quantity}
+                    onChange={handleInputChange}
+                    required
+                    min="1"
+                    data-testid="quantity-input"
+                  />
+                  <div className="tooltip" data-testid="quantity-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Enter the number of units to order (must be positive).</span>
+                  </div>
+                </div>
+                <div className="input-hint">How many units do you want to order?</div>
+                {errors.quantity && <div className="error-message" data-testid="quantity-error">{errors.quantity}</div>}
               </div>
-            </label>
-            <div className="form-description">Your contact number for delivery updates.</div>
-            <input
-              type="text"
-              id="phoneNumber"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleInputChange}
-              required
-            />
-            {errors.phoneNumber && <span className="form-error">{errors.phoneNumber}</span>}
-          </div>
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="email">
-              <FontAwesomeIcon icon={faEnvelope} /> Email
-              <div className="tooltip">
-                <FontAwesomeIcon icon={faInfoCircle} />
-                <span className="tooltip-text">Enter a valid email address for order confirmation.</span>
+            {/* Payment & Contact Section */}
+            <div className="form-section">
+              <h2 className="section-title">Payment & Contact Information</h2>
+              
+              <div className="form-group">
+                <label htmlFor="amount" className="form-label">
+                  <FontAwesomeIcon icon={faMoneyBillWave} className="label-icon" />
+                  Amount (Rs.)
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="number"
+                    id="amount"
+                    name="amount"
+                    className={`form-input ${errors.amount ? 'error-input' : ''}`}
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    required
+                    min="0"
+                    step="0.01"
+                    data-testid="amount-input"
+                  />
+                  <div className="tooltip" data-testid="amount-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Enter the total amount in Rupees (must be positive).</span>
+                  </div>
+                </div>
+                <div className="input-hint">Total price for your order in Rupees</div>
+                {errors.amount && <div className="error-message" data-testid="amount-error">{errors.amount}</div>}
               </div>
-            </label>
-            <div className="form-description">We'll send your order confirmation here.</div>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              required
-            />
-            {errors.email && <span className="form-error">{errors.email}</span>}
-          </div>
 
-          <div className="button-group">
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <span className="loading-spinner"></span>
-              ) : (
-                'Place Order'
-              )}
-            </button>
-            <button
-              type="button"
-              className="cancel-btn"
-              onClick={() => navigate('/orders')}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+              <div className="form-group">
+                <label htmlFor="address" className="form-label">
+                  <FontAwesomeIcon icon={faMapMarkerAlt} className="label-icon" />
+                  Delivery Address
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="text"
+                    id="address"
+                    name="address"
+                    className={`form-input ${errors.address ? 'error-input' : ''}`}
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    required
+                    data-testid="address-input"
+                  />
+                  <div className="tooltip" data-testid="address-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Enter the complete delivery address for the order.</span>
+                  </div>
+                </div>
+                <div className="input-hint">We'll deliver your order to this address</div>
+                {errors.address && <div className="error-message" data-testid="address-error">{errors.address}</div>}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="phoneNumber" className="form-label">
+                  <FontAwesomeIcon icon={faPhone} className="label-icon" />
+                  Phone Number
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="text"
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    className={`form-input ${errors.phoneNumber ? 'error-input' : ''}`}
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    required
+                    data-testid="phone-input"
+                  />
+                  <div className="tooltip" data-testid="phone-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Enter a 10-digit phone number for delivery updates.</span>
+                  </div>
+                </div>
+                <div className="input-hint">We'll send delivery updates to this number</div>
+                {errors.phoneNumber && <div className="error-message" data-testid="phone-error">{errors.phoneNumber}</div>}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email" className="form-label">
+                  <FontAwesomeIcon icon={faEnvelope} className="label-icon" />
+                  Email Address
+                  <span className="required-indicator">*</span>
+                </label>
+                <div className="input-wrapper">
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    className={`form-input ${errors.email ? 'error-input' : ''}`}
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                    data-testid="email-input"
+                  />
+                  <div className="tooltip" data-testid="email-tooltip">
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="tooltip-text">Enter a valid email address for order confirmation.</span>
+                  </div>
+                </div>
+                <div className="input-hint">Your order confirmation will be sent here</div>
+                {errors.email && <div className="error-message" data-testid="email-error">{errors.email}</div>}
+              </div>
+            </div>
+
+            {/* Button Group */}
+            <div className="button-group">
+              <button
+                type="button"
+                className="cancel-button"
+                onClick={() => navigate('/orders')}
+                data-testid="cancel-button"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="submit-button"
+                disabled={isSubmitting}
+                data-testid="submit-button"
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="loading-spinner"></span>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  'Place Order'
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </>
+
+      {/* Modern CSS */}
+      <style jsx>{`
+        /* Global Styles */
+        .add-order-wrapper {
+          min-height: 100vh;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          color: #0f172a;
+          background-color: #f8fafc;
+        }
+        
+        .add-order-container {
+          max-width: 1280px;
+          margin: 80px auto 40px;
+          padding: 24px;
+        }
+        
+        .form-container {
+          max-width: 680px;
+          margin: 0 auto;
+        }
+        
+        /* Back Link */
+        .back-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 20px;
+          color: #0ea5e9;
+          font-weight: 500;
+          cursor: pointer;
+          transition: color 0.2s ease;
+          padding: 6px 12px;
+          border-radius: 6px;
+        }
+        
+        .back-link:hover {
+          color: #0284c7;
+          background-color: rgba(14, 165, 233, 0.1);
+        }
+        
+        /* Form */
+        .add-order-form {
+          background-color: white;
+          border-radius: 12px;
+          padding: 32px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+          animation: formFadeIn 0.5s ease;
+        }
+        
+        @keyframes formFadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .add-order-form h1 {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-top: 0;
+          margin-bottom: 24px;
+          text-align: center;
+        }
+        
+        /* Progress Bar */
+        .progress-container {
+          margin-bottom: 24px;
+          position: relative;
+        }
+        
+        .progress-bar {
+          height: 8px;
+          background-color: #e2e8f0;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        
+        .progress-fill {
+          height: 100%;
+          background-color: #0ea5e9;
+          border-radius: 4px;
+          transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+          position: absolute;
+          right: 0;
+          top: -20px;
+          font-size: 0.75rem;
+          color: #64748b;
+          font-weight: 500;
+        }
+        
+        /* Alerts */
+        .alert {
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 24px;
+          font-size: 0.875rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          animation: alertFadeIn 0.3s ease;
+        }
+        
+        @keyframes alertFadeIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .error-alert {
+          background-color: #fee2e2;
+          color: #b91c1c;
+          border-left: 4px solid #ef4444;
+        }
+        
+        .success-alert {
+          background-color: #dcfce7;
+          color: #15803d;
+          border-left: 4px solid #22c55e;
+        }
+        
+        /* PDF Button */
+        .pdf-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 12px 16px;
+          background-color: #8b5cf6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          margin-bottom: 24px;
+        }
+        
+        .pdf-button:hover {
+          background-color: #7c3aed;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Form Sections */
+        .form-section {
+          margin-bottom: 32px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .section-title {
+          font-size: 1.125rem;
+          font-weight: 600;
+          color: #0f172a;
+          margin-top: 0;
+          margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 2px solid #e2e8f0;
+        }
+        
+        /* Form Groups */
+        .form-group {
+          margin-bottom: 20px;
+        }
+        
+        .form-label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+          font-weight: 500;
+          color: #334155;
+        }
+        
+        .label-icon {
+          color: #0ea5e9;
+        }
+        
+        .required-indicator {
+          color: #ef4444;
+          margin-left: 4px;
+        }
+        
+        .input-wrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        
+        .form-input {
+          width: 100%;
+          padding: 10px 12px;
+          font-size: 0.9rem;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          background-color: white;
+          transition: all 0.2s ease;
+        }
+        
+        .form-input:focus {
+          outline: none;
+          border-color: #0ea5e9;
+          box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+        
+        .error-input {
+          border-color: #ef4444;
+          background-color: #fef2f2;
+        }
+        
+        .error-input:focus {
+          border-color: #ef4444;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+        
+        .input-hint {
+          margin-top: 4px;
+          font-size: 0.75rem;
+          color: #64748b;
+        }
+        
+        .error-message {
+          margin-top: 6px;
+          font-size: 0.75rem;
+          color: #ef4444;
+          background-color: #fee2e2;
+          padding: 4px 8px;
+          border-radius: 4px;
+          animation: errorFadeIn 0.3s ease;
+        }
+        
+        @keyframes errorFadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Tooltip */
+        .tooltip {
+          position: relative;
+          margin-left: 8px;
+          color: #94a3b8;
+          cursor: pointer;
+        }
+        
+        .tooltip-text {
+          visibility: hidden;
+          position: absolute;
+          width: 220px;
+          background-color: #334155;
+          color: white;
+          text-align: center;
+          border-radius: 6px;
+          padding: 8px 12px;
+          z-index: 100;
+          bottom: 125%;
+          left: 50%;
+          transform: translateX(-50%);
+          opacity: 0;
+          transition: opacity 0.3s;
+          font-size: 0.75rem;
+          pointer-events: none;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tooltip-text::after {
+          content: "";
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          margin-left: -5px;
+          border-width: 5px;
+          border-style: solid;
+          border-color: #334155 transparent transparent transparent;
+        }
+        
+        .tooltip:hover .tooltip-text {
+          visibility: visible;
+          opacity: 1;
+        }
+        
+        /* Button Group */
+        .button-group {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 24px;
+          gap: 16px;
+        }
+        
+        .submit-button, .cancel-button {
+          flex: 1;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        
+        .submit-button {
+          background-color: #0ea5e9;
+          color: white;
+        }
+        
+        .submit-button:hover:not(:disabled) {
+          background-color: #0284c7;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .submit-button:disabled {
+          background-color: #cbd5e1;
+          cursor: not-allowed;
+        }
+        
+        .cancel-button {
+          background-color: white;
+          color: #64748b;
+          border: 1px solid #cbd5e1;
+        }
+        
+        .cancel-button:hover {
+          background-color: #f1f5f9;
+          color: #334155;
+        }
+        
+        /* Loading Spinner */
+        .loading-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top-color: white;
+          animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+          .add-order-container {
+            padding: 16px;
+            margin-top: 70px;
+          }
+          
+          .add-order-form {
+            padding: 24px;
+          }
+          
+          .form-label {
+            font-size: 0.9rem;
+          }
+          
+          .button-group {
+            flex-direction: column-reverse;
+          }
+          
+          .submit-button, .cancel-button {
+            width: 100%;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .add-order-form {
+            padding: 16px;
+          }
+          
+          .section-title {
+            font-size: 1rem;
+          }
+        }
+      `}</style>
+    </div>
   );
 };
 

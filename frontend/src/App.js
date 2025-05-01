@@ -234,6 +234,10 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/register" element={<AdminRegister />} />
+              <Route path="/orders">
+                  <Route index element={<OrdersDashboard />} />
+                  <Route path="add" element={<AddOrder />} />
+                </Route>
 
               {/* User Protected Routes */}
               <Route element={<ProtectedRoute />}>
@@ -254,10 +258,7 @@ function App() {
                   <Route path="low-stock" element={<LowStockReport />} />
                 </Route>
 
-                <Route path="/orders">
-                  <Route index element={<OrdersDashboard />} />
-                  <Route path="add" element={<AddOrder />} />
-                </Route>
+               
 
                 
                 <Route path="/tr" element={<LandingPage />} />

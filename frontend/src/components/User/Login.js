@@ -286,10 +286,10 @@ const Login = () => {
               required
             />
           </div>
-          <div className="auth-checkbox">
+          {/* <div className="auth-checkbox">
             <input type="checkbox" id="terms" required />
             <label htmlFor="terms">Accept terms and conditions & privacy policy</label>
-          </div>
+          </div> */}
           <Link to="#" className="forgot-password">
             Forget password?
           </Link>
