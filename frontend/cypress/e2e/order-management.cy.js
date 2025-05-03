@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // cypress/e2e/order-management.cy.js
 /// <reference types="cypress" />
 
