@@ -234,6 +234,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin/register" element={<AdminRegister />} />
+              <Route path="/employee" element={<EmployeeDashboard />} />
               <Route path="/orders">
                   <Route index element={<OrdersDashboard />} />
                   <Route path="add" element={<AddOrder />} />
@@ -269,7 +270,7 @@ function App() {
                 
 
                 <Route path="/suppliers" element={<SupplierDashboard />} />
-                <Route path="/employee" element={<EmployeeDashboard />} />
+                {/* <Route path="/employee" element={<EmployeeDashboard />} /> */}
                 <Route path="/attendance" element={<AttendanceManagement />} />
               </Route>
 
